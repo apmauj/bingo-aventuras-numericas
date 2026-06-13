@@ -43,6 +43,7 @@ interface StudentGameProps {
   sequenceType?: SequenceType;
   sequencePrompt?: number;
   lastScoreEvent?: { row: number; col: number; points: number } | null;
+  answeredCurrentQuestion?: boolean;
 }
 
 export function StudentGame({
@@ -71,6 +72,7 @@ export function StudentGame({
   sequenceType,
   sequencePrompt,
   lastScoreEvent = null,
+  answeredCurrentQuestion = false,
 }: StudentGameProps) {
   const [shakeCell, setShakeCell] = useState<{ row: number; col: number } | null>(null);
   const [sparkleCell, setSparkleCell] = useState<{ row: number; col: number } | null>(null);
@@ -359,22 +361,26 @@ export function StudentGame({
             <span className="text-xs font-semibold text-amber-700">NÚMEROS LLAMADOS</span>
           </div>
           <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
-            {calledNumbers.length === 0 ? (
-              <span className="text-xs text-amber-400">AÚN NO SE LLAMARON NÚMEROS</span>
-            ) : (
-              calledNumbers.map((num, idx) => (
-                <span
-                  key={`${num}-${idx}`}
-                  className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold ${
-                    idx === calledNumbers.length - 1
-                      ? 'bg-amber-400 text-white'
-                      : 'bg-amber-100 text-amber-700'
-                  }`}
-                >
-                  {num}
-                </span>
-              ))
-            )}
+            {calledNumbers.map((num, idx) => {
+                const isLatest = idx === calledNumbers.length - 1;
+                const shouldHide = isLatest && !answeredCurrentQuestion
+                  && (mode === 'sequence' || mode === 'comparison');
+
+                return (
+                  <span
+                    key={`${num}-${idx}`}
+                    className={`inline-flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold ${
+                      shouldHide
+                        ? 'bg-amber-300 text-amber-600'
+                        : isLatest
+                          ? 'bg-amber-400 text-white'
+                          : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
+                    {shouldHide ? '?' : num}
+                  </span>
+                );
+              })}
           </div>
         </CardContent>
       </Card>

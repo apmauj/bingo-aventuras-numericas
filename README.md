@@ -221,4 +221,4 @@ MIT — Ver [LICENSE](LICENSE) para más detalles.
 
 ---
 
-Hecho con ❤️ para la educación
+Hecho en 🇺🇾 con ❤️ para la educación

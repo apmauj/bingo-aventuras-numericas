@@ -54,7 +54,8 @@ export default function Home() {
   const [playerScore, setPlayerScore] = useState(0);
   const [playerCard, setPlayerCard] = useState<number[][]>([]);
   const [playerMarked, setPlayerMarked] = useState<boolean[][]>([]);
-
+  const [answeredCurrentQuestion, setAnsweredCurrentQuestion] = useState(false);
+  
   const [room, setRoom] = useState<RoomState>({
     id: '', code: '', players: [], calledNumbers: [],
     currentNumber: null, ranking: [], gridSize: 3, numberRange: [0, 100],
@@ -315,6 +316,7 @@ export default function Home() {
       }
       setSequenceAnsweredCorrectly(false);
       setComparisonAnsweredCorrectly(false);
+      setAnsweredCurrentQuestion(false);
     });
 
     socket.on(SERVER_EVENTS.SELECTION_RESULT, (payload: SelectionResultPayload) => {
@@ -360,6 +362,7 @@ export default function Home() {
         setSequenceAnsweredCorrectly(true);
         setPlayerScore(payload.totalScore);
         showToast(payload.message, 'success');
+        setAnsweredCurrentQuestion(true);
         playCorrect();
         // Now that the student answered correctly, speak the number aloud
         if (payload.correctAnswer !== undefined) {
@@ -377,6 +380,7 @@ export default function Home() {
         setComparisonAnsweredCorrectly(true);
         setPlayerScore(payload.totalScore);
         showToast(payload.message, 'success');
+        setAnsweredCurrentQuestion(true);
         playCorrect();
         // Now that the student answered correctly, speak the number aloud
         if (room.currentNumber !== null) {
@@ -552,6 +556,7 @@ export default function Home() {
           sequenceType={sequenceType}
           sequencePrompt={sequencePrompt}
           lastScoreEvent={lastScoreEvent}
+          answeredCurrentQuestion={answeredCurrentQuestion}
         />;
       case 'masterCreate':
         return <MasterCreate onCreateRoom={handleCreateRoom} onBack={handleBackToRoles} isLoading={isCreatingRoom} />;
