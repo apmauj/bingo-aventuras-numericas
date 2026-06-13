@@ -3,8 +3,7 @@
 > **La Isla del Bingo Mágico** — Un juego educativo de bingo para niños y niñas de 6 a 8 años
 
 ![Licencia](https://img.shields.io/badge/licencia-MIT-blue)
-![Github Pages](https://github.com/apmauj/bingo-aventuras-numericas/actions)
-![Backend](https://render.com/)
+![Github Pages](https://img.shields.io/github/actions/workflow/status/apmauj/bingo-aventuras-numericas/deploy.yml?branch=main&label=deploy)
 
 ## 📖 Descripción
 
