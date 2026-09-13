@@ -29,6 +29,7 @@ export const SERVER_EVENTS = {
   BINGO: 'server:bingo',
   RANKING_UPDATE: 'server:rankingUpdate',
   GAME_ENDED: 'server:gameEnded',
+  ROOM_CLOSED: 'server:roomClosed',
   ERROR: 'server:error',
   RECONNECTED: 'server:reconnected',
 } as const;

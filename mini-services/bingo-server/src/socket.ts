@@ -21,6 +21,7 @@ import type {
   SequenceResultPayload,
   RankingUpdatePayload,
   GameEndedPayload,
+  RoomClosedPayload,
   ReconnectedPayload,
   ErrorPayload,
   AnswerComparisonPayload,
@@ -552,10 +553,18 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
 
       // If master leaves, end the game or clean up
       if (room.masterSocketId === socket.id) {
+        const wasPlaying = room.state === 'playing';
         room.state = 'ended';
-        io.to(room.code).emit('server:gameEnded', {
-          results: getRanking(room),
-        });
+        if (wasPlaying) {
+          io.to(room.code).emit('server:gameEnded', {
+            results: getRanking(room),
+          });
+        } else {
+          const payload: RoomClosedPayload = {
+            message: 'EL DOCENTE CERRÓ LA SALA.',
+          };
+          socket.to(room.code).emit('server:roomClosed', payload);
+        }
         socket.leave(room.code);
         deleteRoom(room.code);
         console.log(`[Room ${room.code}] Master left, room closed`);
@@ -583,10 +592,18 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
 
     // Check if it's the master disconnecting
     if (room.masterSocketId === socket.id) {
+      const wasPlaying = room.state === 'playing';
       room.state = 'ended';
-      io.to(room.code).emit('server:gameEnded', {
-        results: getRanking(room),
-      });
+      if (wasPlaying) {
+        io.to(room.code).emit('server:gameEnded', {
+          results: getRanking(room),
+        });
+      } else {
+        const payload: RoomClosedPayload = {
+          message: 'EL DOCENTE CERRÓ LA SALA.',
+        };
+        io.to(room.code).emit('server:roomClosed', payload);
+      }
       deleteRoom(room.code);
       console.log(`[Room ${room.code}] Master disconnected, room closed`);
       return;

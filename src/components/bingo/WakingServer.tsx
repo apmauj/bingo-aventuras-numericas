@@ -18,7 +18,6 @@ export function WakingServer({ onConnected, connectionState }: WakingServerProps
 
   React.useEffect(() => {
     if (connectionState === 'connected') {
-      setProgress(100);
       const timer = setTimeout(onConnected, 800);
       return () => clearTimeout(timer);
     }
@@ -41,6 +40,7 @@ export function WakingServer({ onConnected, connectionState }: WakingServerProps
   }, [connectionState]);
 
   const pipoMood = connectionState === 'connected' ? 'waking' : 'sleeping';
+  const visibleProgress = connectionState === 'connected' ? 100 : progress;
   const message = connectionState === 'connected'
     ? '¡SERVIDOR DESPIERTO! 🌟'
     : `DESPERTANDO SERVIDOR${'.'.repeat(dots)}`;
@@ -65,7 +65,7 @@ export function WakingServer({ onConnected, connectionState }: WakingServerProps
       <div className="mt-6 w-64 h-3 bg-amber-200 rounded-full overflow-hidden">
         <div
           className="h-full bg-gradient-to-r from-amber-400 to-orange-400 rounded-full transition-all duration-500 ease-out"
-          style={{ width: `${progress}%` }}
+          style={{ width: `${visibleProgress}%` }}
         />
       </div>
 

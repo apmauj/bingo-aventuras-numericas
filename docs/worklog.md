@@ -1,3 +1,7 @@
+# Bitácora de trabajo
+
+> Las entradas anteriores conservan el historial de decisiones y tareas. Algunas mencionan archivos de la versión standalone que luego fueron retirados; el estado vigente del proyecto está documentado en el README y en la última entrada.
+
 ---
 Task ID: 1
 Agent: Main
@@ -6,7 +10,7 @@ Task: Validate end-to-end scoring flow and fix bugs
 Work Log:
 - Analyzed complete code flow: student click → server scoring → ranking update on master
 - Confirmed scoring system is fully implemented in backend (game.js: +10/+50/+200)
-- Confirmed ranking sidebar exists in master.html and master.js (updateRanking function)
+- Confirmed ranking sidebar existed in the historical standalone master client (baseline for the current implementation)
 - Confirmed server emits server:rankingUpdate on correct selection
 - Confirmed playerToPublic() includes markedCount and totalCells for progress bar
 - Identified Bug #2 root cause: multiple issues affecting student card clicks
@@ -16,7 +20,7 @@ Work Log:
 - Implemented rejoinRoom in rooms.js for reconnection during active game
 - Updated socket.js to handle reconnection during playing state
 - Added server:reconnected event for state sync after reconnect
-- Added reconnected handler in student.js to restore marked cells and score
+- Added the reconnection handler to the historical standalone student client before the current Next.js implementation
 
 Stage Summary:
 - Scoring and ranking were already fully implemented; the real issue is Bug #2
@@ -136,7 +140,7 @@ Task: Fix workspace preview and download button, fix remaining lowercase text
 Work Log:
 - Investigated workspace preview issue - servers were not running
 - Next.js production server kept dying between tool calls due to process lifecycle
-- Created /home/z/my-project/launcher.sh with setsid to persist processes
+- Created a temporary `setsid` launcher to keep the preview services alive
 - Successfully started both Next.js (port 3000) and bingo-server (port 3003)
 - Verified Caddy on port 81 returns 200 when both services are running
 - Found and fixed all lowercase text issues:
@@ -149,7 +153,7 @@ Work Log:
 Stage Summary:
 - Preview is working when both servers are running (Next.js + bingo-server)
 - All text now displays in uppercase including avatar labels, range separator, and placeholders
-- Services started with: setsid /home/z/my-project/launcher.sh
+- Services started temporarily through the `setsid` launcher
 
 ---
 Task ID: 6
@@ -319,3 +323,46 @@ Stage Summary:
 - BINGO overlay IMPLEMENTED: full-screen celebration with winner name, auto-dismiss
 - Varied messages IMPLEMENTED: 8 success phrases + 5 line phrases (random each time)
 - TTS toggle IMPLEMENTED: speaker icon on both student and master game screens
+
+---
+Task ID: 11
+Agent: Main
+Date: 2026-09-13
+Task: Add unattended number selection, enforce number limits, and align documentation
+
+Work Log:
+- Added `ELECCIÓN DESATENDIDA` to the teacher game screen with a toggle, a seconds slider, and a numeric input.
+- Limited automatic reveals to 1–180 seconds, with 30 seconds as the default.
+- Kept `SIGUIENTE NÚMERO` available; every manual reveal resets the automatic countdown.
+- Added shared helpers to calculate remaining calls for classic, parity, and tens modes.
+- Enforced integer ranges from 0 to 10.000 inclusive in the room creation UI and backend. Negative, decimal, malformed, and oversized ranges are rejected server-side.
+- Corrected the favicon metadata to use the existing `public/logo.svg` instead of removed standalone assets.
+- Updated `README.md` with the current architecture, runtime requirements, deployment variables, number limits, and unattended mode.
+- Added a root `LICENSE` file to resolve the README link.
+- Added `types/bun-test.d.ts` so Bun tests remain covered by the root TypeScript check.
+- Added focused tests for timer/range helpers and backend number-range validation.
+- The old binary development-plan document is retired; useful current information lives in the README and this worklog.
+
+Stage Summary:
+- UNATTENDED SELECTION IMPLEMENTED: configurable automatic number reveals with manual reset behavior.
+- RANGE VALIDATION HARDENED: 0–10.000 integer limit enforced in both client and server.
+- DOCUMENTATION ALIGNED: README and worklog describe the current Next.js/Socket.io project and deployment setup.
+
+---
+Task ID: 12
+Agent: Main
+Date: 2026-09-13
+Task: Resolve ESLint issues and add lobby exit/room cancellation flows
+
+Work Log:
+- Removed the five `react-hooks/set-state-in-effect` lint errors without disabling the rule globally.
+- Refactored `MasterCreate` to derive a viable grid size instead of synchronizing selection through effects.
+- Updated `WakingServer`, `use-mobile`, and the carousel subscription to use derived state or external-store/event patterns.
+- Added `SALIR DE LA SALA` to the student lobby; leaving removes the student immediately and returns to the join form.
+- Added `CANCELAR SALA` to the teacher lobby; it closes the lobby room and returns the teacher to role selection.
+- Added `server:roomClosed` so students are notified when the teacher closes a lobby. Active games continue using `server:gameEnded`.
+- Added a Socket.io regression test for room closure and verified both lobby flows in the browser.
+
+Stage Summary:
+- ESLINT CLEAN: `bun run lint` completes without errors.
+- LOBBY EXIT IMPLEMENTED: student and teacher can leave safely, with server-side cleanup and notification.

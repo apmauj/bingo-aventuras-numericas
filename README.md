@@ -9,11 +9,12 @@
 
 Bingo Aventuras Numéricas es un juego de bingo educativo diseñado para el aula. Los docentes crean una sala desde su computadora (pantalla grande) y los estudiantes se unen desde sus tablets o celulares. El juego combina:
 
-- **Reconocimiento de números** (0-200, configurable)
+- **Reconocimiento de números** (0-10.000, configurable)
 - **Comparación numérica** (mayor, menor, igual)
 - **Pares e impares** — discriminación de paridad
 - **Decenas** — reconocimiento de agrupaciones por decena
 - **Secuencias** — ¿qué viene antes o después?
+- **Elección desatendida** — revelado automático configurable para el docente
 - **Atención y escucha** activa
 - **Motivación social** a través del juego en grupo
 
@@ -46,6 +47,21 @@ Cada tamaño muestra dinámicamente la cantidad de números necesarios. Los tama
 - Por defecto: activada en tableros impares, desactivada en pares
 - Se muestra como ⭐ en el cartón
 
+## 🔢 Rango de números
+
+- El rango admite números enteros desde **0 hasta 10.000**, inclusive.
+- No se aceptan valores negativos, decimales ni un máximo superior a 10.000.
+- La validación se realiza tanto en la pantalla de creación como en el servidor.
+
+## ⏱️ Elección desatendida
+
+En la pantalla del docente se puede activar **ELECCIÓN DESATENDIDA** para revelar el próximo número sin intervención manual.
+
+- El intervalo se ajusta con un slider o un campo numérico en segundos.
+- El rango permitido es de **1 a 180 segundos**; el valor inicial es de 30 segundos.
+- El botón **SIGUIENTE NÚMERO** sigue disponible en todo momento.
+- Cada revelado manual reinicia inmediatamente la cuenta regresiva.
+
 ## 🏗️ Arquitectura
 
 ```
@@ -73,7 +89,8 @@ bingo-aventuras-numericas/
 │   ├── types/bingo.ts            # Tipos TypeScript del juego
 │   ├── hooks/useSocket.ts        # Hook de conexión Socket.io con reconexión
 │   └── lib/socket-events.ts      # Constantes de eventos cliente/servidor
-├── mini-services/bingo-server/   # Backend Socket.io (Bun + TypeScript)
+├── public/logo.svg               # Logo usado también como favicon
+├── mini-services/bingo-server/   # Backend Socket.io (TypeScript)
 │   ├── index.ts                  # Servidor Express + Socket.io (puerto 3003)
 │   └── src/
 │       ├── types.ts              # Tipos compartidos del backend
@@ -81,8 +98,9 @@ bingo-aventuras-numericas/
 │       ├── rooms.ts              # Gestión de salas y jugadores
 │       ├── game.ts               # Lógica del juego (validar, detectar línea/bingo)
 │       └── cards.ts              # Generación de cartones por modo
-├── launcher.sh                   # Script para iniciar ambos servicios
-└── start.sh                      # Script alternativo de inicio
+├── .github/workflows/deploy.yml  # Build y deploy estático a GitHub Pages
+├── render.yaml                   # Blueprint del backend en Render
+└── docs/worklog.md               # Bitácora de cambios y decisiones
 ```
 
 ### Stack Tecnológico
@@ -90,8 +108,8 @@ bingo-aventuras-numericas/
 | Capa | Tecnología |
 |------|-----------|
 | **Frontend** | Next.js 16, React 19, Tailwind CSS 4, shadcn/ui |
-| **Backend** | Bun, Express, Socket.io (mini-service en puerto 3003) |
-| **Backend deploy** | Render (gratuito) — Socket.io + Express |
+| **Backend** | Express + Socket.io + TypeScript (Bun en desarrollo, Node.js + tsx en producción) |
+| **Backend deploy** | Render — Socket.io + Express, puerto configurable (`3003` local / `PORT` en Render) |
 | **Frontend deploy** | GitHub Pages — estático, sin servidor |
 | **Audio** | Web Audio API (efectos sintetizados) + Web Speech API (TTS en español) |
 | **Tiempo real** | Socket.io con reconexión automática y restauración de estado |
@@ -101,16 +119,17 @@ bingo-aventuras-numericas/
 1. El docente crea una sala → servidor genera código de 4 caracteres
 2. Los estudiantes se unen con código + nombre + avatar (30 animales)
 3. El docente inicia la partida → se generan cartones únicos para cada jugador
-4. El docente canta números → se pronuncian en voz alta (TTS) + sonido
+4. El docente canta números manualmente o activa la elección desatendida → TTS + sonido
 5. Los estudiantes marcan números → el servidor valida y otorga puntos
 6. Línea completada: +50 pts | BINGO: +200 pts
 7. Si un estudiante pierde conexión, puede reconectarse y continuar con su cartón y puntaje
+8. Un estudiante puede salir desde el lobby; el docente puede cancelar la sala antes de iniciar
 
 ## 🚀 Quick Start
 
 ### Requisitos
 
-- Node.js 18+ o Bun
+- Node.js 20.9+ o Bun
 - npm o bun
 
 ### Desarrollo Local
@@ -139,6 +158,19 @@ bingo-aventuras-numericas/
 4. **Abrir el juego**
    - Frontend: `http://localhost:3000`
    - Backend health check: `http://localhost:3003/health`
+
+5. **Ejecutar pruebas y verificar tipos**
+   ```bash
+   bun test
+   bunx tsc --noEmit
+   ```
+
+### Despliegue
+
+- El workflow `.github/workflows/deploy.yml` publica el frontend como sitio estático en GitHub Pages.
+- El build del frontend necesita el secreto `NEXT_PUBLIC_SERVER_URL` con la URL pública del backend.
+- `render.yaml` configura el backend en Render. En Render hay que completar `CORS_ORIGIN` con la URL pública del frontend.
+- El backend mantiene las salas en memoria; reiniciar el servicio elimina las salas activas.
 
 ## 🐼 Pipo, la Mascota
 
@@ -193,9 +225,9 @@ Si un estudiante pierde la conexión durante una partida:
 - **Accesibilidad**: Contraste suficiente, `aria-labels`, `prefers-reduced-motion`
 - **Validación proactiva**: Los tamaños de cartón no viables se grisán antes de crear la sala
 
-## 📋 TODO — Features pendientes de portar desde la versión standalone
+## 📋 TODO — Próximos pasos
 
-La versión original (HTML/CSS/JS vanilla) tiene algunas features que aún no fueron portadas a la versión Next.js:
+La versión Next.js concentra actualmente las funcionalidades que se conservaron de la versión standalone. Quedan estos pendientes de producto y operación:
 
 - [x] **Texto flotante de puntos** — Al marcar correctamente, aparece "+10" o "+50" flotando junto a la casilla.
 - [x] **Animación de score bounce** — El puntaje cuenta hacia arriba animado en vez de cambiar instantáneamente.
@@ -203,7 +235,8 @@ La versión original (HTML/CSS/JS vanilla) tiene algunas features que aún no fu
 - [x] **Overlay de celebración de BINGO** — Pantalla completa con nombre del ganador (el confetti actual es sutil).
 - [x] **Mensajes variados de ánimo** — Frases aleatorias de estímulo en vez de un único mensaje fijo por evento.
 - [x] **Toggle de TTS** — Botón para que el docente/estudiante pueda silenciar la pronunciación de números.
-- [ ] **Deploy a producción** — Configuración para Render (backend) + Vercel/GitHub Pages (frontend).
+- [x] **Configuración de despliegue** — Workflow para GitHub Pages y blueprint para Render.
+- [ ] **Verificación de producción** — Completar `NEXT_PUBLIC_SERVER_URL` y `CORS_ORIGIN`, y confirmar una partida real desplegada.
 
 ## 🤝 Contribuir
 

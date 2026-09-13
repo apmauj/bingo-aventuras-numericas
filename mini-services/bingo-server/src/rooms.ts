@@ -3,6 +3,7 @@
 // ============================================================
 
 import { nanoid } from 'nanoid';
+import { MAX_NUMBER_VALUE } from './types';
 import type { Room, Player, GameConfig, GameMode, PlayerPublic } from './types';
 import { generateCard, createMarkedGrid } from './cards';
 
@@ -73,15 +74,27 @@ export function createRoom(masterSocketId: string, config?: Partial<GameConfig> 
   const effectiveFreeCell = mergedConfig.gridSize % 2 === 1 ? freeCell : false;
 
   // Validate numberRange — throw errors instead of silently defaulting
-  if (config?.numberRange && Array.isArray(config.numberRange) && config.numberRange.length === 2) {
+  if (config?.numberRange !== undefined) {
+    if (!Array.isArray(config.numberRange) || config.numberRange.length !== 2) {
+      throw new Error('EL RANGO DEBE CONTENER EXACTAMENTE DOS NÚMEROS.');
+    }
+
     const [min, max] = config.numberRange;
 
     if (typeof min !== 'number' || typeof max !== 'number' || isNaN(min) || isNaN(max)) {
       throw new Error('EL RANGO DEBE CONTENER NÚMEROS VÁLIDOS.');
     }
 
-    if (min < 0) {
-      throw new Error('EL NÚMERO MÍNIMO NO PUEDE SER NEGATIVO.');
+    if (!Number.isInteger(min) || !Number.isInteger(max)) {
+      throw new Error('EL RANGO DEBE CONTENER NÚMEROS ENTEROS.');
+    }
+
+    if (min < 0 || max < 0) {
+      throw new Error('EL RANGO NO PUEDE CONTENER NÚMEROS NEGATIVOS.');
+    }
+
+    if (max > MAX_NUMBER_VALUE) {
+      throw new Error(`EL NÚMERO MÁXIMO NO PUEDE SUPERAR ${MAX_NUMBER_VALUE.toLocaleString('es-ES')}.`);
     }
 
     if (min >= max) {

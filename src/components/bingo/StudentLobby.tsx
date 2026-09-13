@@ -5,24 +5,39 @@
 'use client';
 
 import React from 'react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PipoMascot } from './PipoMascot';
 import type { PlayerPublic } from '@/types/bingo';
 import { AVATARS } from '@/types/bingo';
-import { Users, Clock } from 'lucide-react';
+import { ArrowLeft, Users, Clock } from 'lucide-react';
 
 interface StudentLobbyProps {
   playerName: string;
   playerAvatar: string;
   players: PlayerPublic[];
   roomCode: string;
+  onLeaveRoom: () => void;
 }
 
-export function StudentLobby({ playerName, playerAvatar, players, roomCode }: StudentLobbyProps) {
+export function StudentLobby({ playerName, playerAvatar, players, roomCode, onLeaveRoom }: StudentLobbyProps) {
   const playerAvatarEmoji = AVATARS.find((a) => a.id === playerAvatar)?.emoji || '🐼';
 
   return (
     <div className="flex flex-col items-center min-h-screen bg-gradient-to-b from-emerald-50 to-teal-50 px-4 py-6">
+      <div className="w-full max-w-md flex justify-start mb-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onLeaveRoom}
+          className="text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800"
+          aria-label="Salir de la sala"
+        >
+          <ArrowLeft className="w-4 h-4 mr-1" />
+          SALIR DE LA SALA
+        </Button>
+      </div>
+
       {/* Pipo encouraging */}
       <div className="mb-4 animate-pipo-breathe">
         <PipoMascot mood="encouraging" size={120} />

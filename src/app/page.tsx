@@ -25,6 +25,7 @@ import type {
   GameStartedPayload,
   NewNumberPayload,
   ReconnectedPayload,
+  RoomClosedPayload,
   GameMode,
 } from '@/types/bingo';
 
@@ -42,6 +43,19 @@ import { ConfettiEffect } from '@/components/bingo/ConfettiEffect';
 import { BingoOverlay } from '@/components/bingo/BingoOverlay';
 import { playNumberCalled, playCorrect, playIncorrect, playLineCompleted, playBingo, playJoined, resumeAudio, speakNumber } from '@/components/bingo/SoundFX';
 
+const EMPTY_ROOM_STATE: RoomState = {
+  id: '',
+  code: '',
+  players: [],
+  calledNumbers: [],
+  currentNumber: null,
+  ranking: [],
+  gridSize: 3,
+  numberRange: [0, 100],
+  mode: 'classic',
+  freeCell: true,
+};
+
 export default function Home() {
   const { connectionState, emit } = useSocket();
 
@@ -56,11 +70,7 @@ export default function Home() {
   const [playerMarked, setPlayerMarked] = useState<boolean[][]>([]);
   const [answeredCurrentQuestion, setAnsweredCurrentQuestion] = useState(false);
   
-  const [room, setRoom] = useState<RoomState>({
-    id: '', code: '', players: [], calledNumbers: [],
-    currentNumber: null, ranking: [], gridSize: 3, numberRange: [0, 100],
-    mode: 'classic', freeCell: true,
-  });
+  const [room, setRoom] = useState<RoomState>(EMPTY_ROOM_STATE);
 
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -142,6 +152,48 @@ export default function Home() {
     emit(CLIENT_EVENTS.LEAVE_ROOM, { roomId });
   }, [emit]);
 
+  const resetSessionState = useCallback(() => {
+    setRole('student');
+    setPlayerName('');
+    setPlayerAvatar('panda');
+    setPlayerId('');
+    setPlayerScore(0);
+    setPlayerCard([]);
+    setPlayerMarked([]);
+    setRoom(EMPTY_ROOM_STATE);
+    setComparisonTarget(undefined);
+    setComparisonOperator(undefined);
+    setDecadeStart(undefined);
+    setDecadeEnd(undefined);
+    setSequenceType(undefined);
+    setSequencePrompt(undefined);
+    setSequenceOptions([]);
+    setSequenceAnsweredCorrectly(false);
+    setComparisonAnsweredCorrectly(false);
+    setAnsweredCurrentQuestion(false);
+    setCompletedLines([]);
+    setLastScoreEvent(null);
+    setBingoOverlay(null);
+    setShowConfetti(false);
+    setIsCreatingRoom(false);
+  }, []);
+
+  const handleLeaveRoom = useCallback((returnView: 'roleSelection' | 'studentJoin') => {
+    if (room.id) {
+      emit(CLIENT_EVENTS.LEAVE_ROOM, { roomId: room.id });
+    }
+    resetSessionState();
+    setCurrentView(returnView);
+  }, [emit, resetSessionState, room.id]);
+
+  const handleLeaveStudentLobby = useCallback(() => {
+    handleLeaveRoom('studentJoin');
+  }, [handleLeaveRoom]);
+
+  const handleCancelMasterLobby = useCallback(() => {
+    handleLeaveRoom('roleSelection');
+  }, [handleLeaveRoom]);
+
   const handleJoinRoom = useCallback((code: string, name: string, avatar: string) => {
     console.log('[UI] Joining room:', code, 'as', name);
     setPlayerName(name);
@@ -170,15 +222,9 @@ export default function Home() {
   }, [emit, room.id]);
 
   const handlePlayAgain = useCallback(() => {
-    setRole('student'); setPlayerName(''); setPlayerAvatar('panda'); setPlayerId('');
-    setPlayerScore(0); setPlayerCard([]); setPlayerMarked([]);
-    setRoom({ id: '', code: '', players: [], calledNumbers: [], currentNumber: null, ranking: [], gridSize: 3, numberRange: [0, 100], mode: 'classic', freeCell: true });
-    setComparisonTarget(undefined); setComparisonOperator(undefined);
-    setDecadeStart(undefined); setDecadeEnd(undefined);
-    setSequenceType(undefined); setSequencePrompt(undefined);
-    setSequenceOptions([]); setSequenceAnsweredCorrectly(false);
-    setShowConfetti(false); setCurrentView('roleSelection');
-  }, []);
+    resetSessionState();
+    setCurrentView('roleSelection');
+  }, [resetSessionState]);
 
   const handleBackToRoles = useCallback(() => { setCurrentView('roleSelection'); }, []);
 
@@ -451,6 +497,13 @@ export default function Home() {
       setCurrentView('results');
     });
 
+    socket.on(SERVER_EVENTS.ROOM_CLOSED, (payload: RoomClosedPayload) => {
+      if (currentRoleRef.current !== 'student') return;
+      resetSessionState();
+      setCurrentView('studentJoin');
+      showToast(payload.message, 'info');
+    });
+
     socket.on(SERVER_EVENTS.ERROR, (payload: ErrorPayload) => {
       console.log('[Event] error:', payload);
       showToast(payload.message, 'error');
@@ -528,7 +581,7 @@ export default function Home() {
       case 'studentJoin':
         return <StudentJoin onJoin={handleJoinRoom} onBack={handleBackToRoles} initialCode={initialRoomCode} />;
       case 'studentLobby':
-        return <StudentLobby playerName={playerName} playerAvatar={playerAvatar} players={room.players} roomCode={room.code} />;
+        return <StudentLobby playerName={playerName} playerAvatar={playerAvatar} players={room.players} roomCode={room.code} onLeaveRoom={handleLeaveStudentLobby} />;
       case 'studentGame':
         return <StudentGame
           card={playerCard}
@@ -561,7 +614,7 @@ export default function Home() {
       case 'masterCreate':
         return <MasterCreate onCreateRoom={handleCreateRoom} onBack={handleBackToRoles} isLoading={isCreatingRoom} />;
       case 'masterLobby':
-        return <MasterLobby roomCode={room.code} roomId={room.id} players={room.players} onStartGame={handleStartGame} gridSize={room.gridSize} numberRange={room.numberRange} mode={room.mode} freeCell={room.freeCell} />;
+        return <MasterLobby roomCode={room.code} roomId={room.id} players={room.players} onStartGame={handleStartGame} onCancelRoom={handleCancelMasterLobby} gridSize={room.gridSize} numberRange={room.numberRange} mode={room.mode} freeCell={room.freeCell} />;
       case 'masterGame':
         return <MasterGame
           roomId={room.id}
@@ -572,6 +625,7 @@ export default function Home() {
           onNextNumber={handleNextNumber}
           onEndGame={handleEndGame}
           playerCount={room.players.length}
+          numberRange={room.numberRange}
           comparisonTarget={comparisonTarget}
           comparisonOperator={comparisonOperator}
           mode={room.mode}

@@ -18,13 +18,14 @@ interface MasterLobbyProps {
   roomId: string;
   players: PlayerPublic[];
   onStartGame: (roomId: string) => void;
+  onCancelRoom: () => void;
   gridSize?: number;
   numberRange?: [number, number];
   mode?: GameMode;
   freeCell?: boolean;
 }
 
-export function MasterLobby({ roomCode, roomId, players, onStartGame, gridSize = 3, numberRange = [0, 100], mode = 'classic', freeCell = true }: MasterLobbyProps) {
+export function MasterLobby({ roomCode, roomId, players, onStartGame, onCancelRoom, gridSize = 3, numberRange = [0, 100], mode = 'classic', freeCell = true }: MasterLobbyProps) {
   const [copied, setCopied] = useState(false);
   const canStart = players.length >= 1;
 
@@ -41,6 +42,18 @@ export function MasterLobby({ roomCode, roomId, players, onStartGame, gridSize =
 
   return (
     <div className="flex flex-col items-center min-h-screen bg-gradient-to-b from-amber-50 to-orange-50 px-4 py-6">
+      <div className="w-full max-w-md flex justify-start mb-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onCancelRoom}
+          className="text-amber-700 hover:bg-amber-100 hover:text-amber-800"
+          aria-label="Cancelar sala"
+        >
+          CANCELAR SALA
+        </Button>
+      </div>
+
       {/* Pipo */}
       <div className="mb-4 animate-pipo-breathe">
         <PipoMascot mood="happy" size={100} />

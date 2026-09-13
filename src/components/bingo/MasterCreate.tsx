@@ -4,12 +4,13 @@
 
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PipoMascot } from './PipoMascot';
 import { ArrowLeft, Plus } from 'lucide-react';
 import { GAME_MODES, type GameMode } from '@/types/bingo';
+import { MAX_NUMBER_VALUE, clampNumberValue } from '@/lib/bingo-config';
 
 interface MasterCreateProps {
   onCreateRoom: (gridSize: number, numberRange: [number, number], mode: GameMode, freeCell: boolean) => void;
@@ -64,19 +65,35 @@ export function MasterCreate({ onCreateRoom, onBack, isLoading }: MasterCreatePr
     });
   }, [freeCell, availableNumbers]);
 
+  // Keep the selected size usable without synchronizing state from an effect.
+  // When the current range becomes too small, use the largest viable option
+  // for the preview and the room creation payload.
+  const effectiveGridSize = useMemo(() => {
+    const currentOption = gridOptions.find((option) => option.size === gridSize);
+    if (currentOption?.isViable) return gridSize;
+
+    return gridOptions
+      .filter((option) => option.isViable)
+      .sort((a, b) => b.size - a.size)[0]?.size ?? gridSize;
+  }, [gridOptions, gridSize]);
+
+  const effectiveFreeCell = freeCell && effectiveGridSize % 2 === 1;
+
   // Calculate how many unique numbers are needed for current selection
   const numbersNeeded = useMemo(() => {
-    return numbersNeededForSize(gridSize, freeCell);
-  }, [gridSize, freeCell]);
+    return numbersNeededForSize(effectiveGridSize, effectiveFreeCell);
+  }, [effectiveFreeCell, effectiveGridSize]);
 
   // Whether ⭐ toggle is available (only odd grids have a center cell)
-  const canToggleFreeCell = gridSize % 2 === 1;
+  const canToggleFreeCell = effectiveGridSize % 2 === 1;
 
   // Validate range for current selection
   const rangeError = useMemo(() => {
     const [min, max] = numberRange;
     if (isNaN(min) || isNaN(max)) return 'INGRESÁ NÚMEROS VÁLIDOS';
-    if (min < 0) return 'EL MÍNIMO NO PUEDE SER NEGATIVO';
+    if (!Number.isInteger(min) || !Number.isInteger(max)) return 'INGRESÁ NÚMEROS ENTEROS';
+    if (min < 0 || max < 0) return 'EL RANGO NO PUEDE CONTENER NÚMEROS NEGATIVOS';
+    if (max > MAX_NUMBER_VALUE) return `EL MÁXIMO NO PUEDE SUPERAR ${MAX_NUMBER_VALUE.toLocaleString('es-ES')}`;
     if (min >= max) return 'EL MÍNIMO DEBE SER MENOR QUE EL MÁXIMO';
     if (mode === 'tens') {
       // Tens mode needs at least 2 decades
@@ -100,25 +117,6 @@ export function MasterCreate({ onCreateRoom, onBack, isLoading }: MasterCreatePr
     }
     return null;
   }, [numberRange, numbersNeeded, availableNumbers, mode]);
-
-  // ── Effects ──
-
-  // When gridSize changes, update freeCell default (ON for odd, OFF for even)
-  useEffect(() => {
-    setFreeCell(gridSize % 2 === 1);
-  }, [gridSize]);
-
-  // Auto-select largest viable grid size when current becomes non-viable
-  useEffect(() => {
-    const currentOption = gridOptions.find(o => o.size === gridSize);
-    if (currentOption && !currentOption.isViable) {
-      // Find the largest viable size
-      const viableSizes = gridOptions.filter(o => o.isViable).sort((a, b) => b.size - a.size);
-      if (viableSizes.length > 0) {
-        setGridSize(viableSizes[0].size);
-      }
-    }
-  }, [gridOptions, gridSize]);
 
   const canCreate = !rangeError && !isLoading;
 
@@ -186,13 +184,18 @@ export function MasterCreate({ onCreateRoom, onBack, isLoading }: MasterCreatePr
                 className={`transition-all duration-200 border-2 ${
                   !opt.isViable
                     ? 'border-gray-200 bg-gray-50 opacity-40 cursor-not-allowed'
-                    : gridSize === opt.size
+                    : effectiveGridSize === opt.size
                       ? 'border-amber-500 bg-amber-50 shadow-md cursor-pointer'
                       : 'border-gray-200 hover:border-amber-300 cursor-pointer'
                 }`}
-                onClick={() => opt.isViable && setGridSize(opt.size)}
+                onClick={() => {
+                  if (opt.isViable) {
+                    setGridSize(opt.size);
+                    setFreeCell(opt.size % 2 === 1);
+                  }
+                }}
                 role="button"
-                aria-pressed={gridSize === opt.size && opt.isViable}
+                aria-pressed={effectiveGridSize === opt.size && opt.isViable}
                 aria-disabled={!opt.isViable}
                 aria-label={`Cartón de ${opt.label}${!opt.isViable ? ' (rango insuficiente)' : ''}`}
               >
@@ -216,13 +219,13 @@ export function MasterCreate({ onCreateRoom, onBack, isLoading }: MasterCreatePr
           <div className="grid grid-cols-2 gap-3">
             <Card
               className={`cursor-pointer transition-all duration-200 border-2 ${
-                freeCell && canToggleFreeCell
+                effectiveFreeCell && canToggleFreeCell
                   ? 'border-emerald-400 bg-emerald-50 shadow-md'
                   : 'border-gray-200 hover:border-amber-300'
               } ${!canToggleFreeCell ? 'opacity-40 cursor-not-allowed' : ''}`}
               onClick={() => canToggleFreeCell && setFreeCell(true)}
               role="button"
-              aria-pressed={freeCell && canToggleFreeCell}
+              aria-pressed={effectiveFreeCell && canToggleFreeCell}
               aria-disabled={!canToggleFreeCell}
               aria-label="Con estrella"
             >
@@ -234,13 +237,13 @@ export function MasterCreate({ onCreateRoom, onBack, isLoading }: MasterCreatePr
             </Card>
             <Card
               className={`cursor-pointer transition-all duration-200 border-2 ${
-                !freeCell || !canToggleFreeCell
+                !effectiveFreeCell || !canToggleFreeCell
                   ? 'border-amber-400 bg-amber-50 shadow-md'
                   : 'border-gray-200 hover:border-amber-300'
               } ${!canToggleFreeCell ? 'opacity-40 cursor-not-allowed' : ''}`}
               onClick={() => canToggleFreeCell && setFreeCell(false)}
               role="button"
-              aria-pressed={!freeCell || !canToggleFreeCell}
+              aria-pressed={!effectiveFreeCell || !canToggleFreeCell}
               aria-disabled={!canToggleFreeCell}
               aria-label="Sin estrella"
             >
@@ -269,7 +272,7 @@ export function MasterCreate({ onCreateRoom, onBack, isLoading }: MasterCreatePr
               <input
                 type="number"
                 value={numberRange[0]}
-                onChange={(e) => setNumberRange([parseInt(e.target.value) || 0, numberRange[1]])}
+                onChange={(e) => setNumberRange([clampNumberValue(Number.parseInt(e.target.value, 10)), numberRange[1]])}
                 className="w-full h-10 rounded-lg border-2 border-amber-200 text-center font-bold text-amber-800 focus:border-amber-500 focus:outline-none"
                 min={0}
                 max={numberRange[1] - 1}
@@ -281,10 +284,10 @@ export function MasterCreate({ onCreateRoom, onBack, isLoading }: MasterCreatePr
               <input
                 type="number"
                 value={numberRange[1]}
-                onChange={(e) => setNumberRange([numberRange[0], parseInt(e.target.value) || 100])}
+                onChange={(e) => setNumberRange([numberRange[0], clampNumberValue(Number.parseInt(e.target.value, 10))])}
                 className="w-full h-10 rounded-lg border-2 border-amber-200 text-center font-bold text-amber-800 focus:border-amber-500 focus:outline-none"
                 min={numberRange[0] + numbersNeeded}
-                max={200}
+                max={MAX_NUMBER_VALUE}
               />
             </div>
           </div>
@@ -298,7 +301,7 @@ export function MasterCreate({ onCreateRoom, onBack, isLoading }: MasterCreatePr
 
         {/* Create button */}
         <Button
-          onClick={() => canCreate && onCreateRoom(gridSize, numberRange, mode, freeCell)}
+          onClick={() => canCreate && onCreateRoom(effectiveGridSize, numberRange, mode, effectiveFreeCell)}
           disabled={!canCreate}
           className="w-full h-14 text-lg font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="Crear sala de bingo"

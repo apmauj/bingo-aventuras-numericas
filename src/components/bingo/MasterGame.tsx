@@ -7,9 +7,11 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
 import { NumberDisplay } from './NumberDisplay';
 import { RankingBoard } from './RankingBoard';
 import type { RankingEntry, ComparisonOperator, GameMode, SequenceType } from '@/types/bingo';
+import { AUTO_ADVANCE_MAX_SECONDS, AUTO_ADVANCE_MIN_SECONDS, DEFAULT_AUTO_ADVANCE_SECONDS, clampAutoAdvanceSeconds, getExpectedCallCount } from '@/lib/bingo-config';
 import { ArrowRight, Square, History, Users, Volume2, VolumeX } from 'lucide-react';
 import { isTtsEnabled, setTtsEnabled } from './SoundFX';
 
@@ -22,6 +24,7 @@ interface MasterGameProps {
   onNextNumber: (roomId: string) => void;
   onEndGame: (roomId: string) => void;
   playerCount: number;
+  numberRange: [number, number];
   comparisonTarget?: number;
   comparisonOperator?: ComparisonOperator;
   mode?: GameMode;
@@ -40,6 +43,7 @@ export function MasterGame({
   onNextNumber,
   onEndGame,
   playerCount,
+  numberRange,
   comparisonTarget,
   comparisonOperator,
   mode = 'classic',
@@ -49,6 +53,54 @@ export function MasterGame({
   sequencePrompt,
 }: MasterGameProps) {
   const [ttsOn, setTtsOn] = React.useState(isTtsEnabled());
+  const [autoAdvance, setAutoAdvance] = React.useState(false);
+  const [autoIntervalSeconds, setAutoIntervalSeconds] = React.useState(DEFAULT_AUTO_ADVANCE_SECONDS);
+  const [secondsUntilNext, setSecondsUntilNext] = React.useState(DEFAULT_AUTO_ADVANCE_SECONDS);
+  const autoElapsedSecondsRef = React.useRef(0);
+
+  const expectedCallCount = React.useMemo(
+    () => getExpectedCallCount(mode, numberRange),
+    [mode, numberRange],
+  );
+  const hasNumbersRemaining = calledNumbers.length < expectedCallCount;
+
+  React.useEffect(() => {
+    if (!autoAdvance || !hasNumbersRemaining) return;
+
+    autoElapsedSecondsRef.current = 0;
+    const timer = window.setInterval(() => {
+      autoElapsedSecondsRef.current += 1;
+      if (autoElapsedSecondsRef.current >= autoIntervalSeconds) {
+        autoElapsedSecondsRef.current = 0;
+        setSecondsUntilNext(autoIntervalSeconds);
+        onNextNumber(roomId);
+      } else {
+        setSecondsUntilNext(autoIntervalSeconds - autoElapsedSecondsRef.current);
+      }
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [autoAdvance, autoIntervalSeconds, hasNumbersRemaining, onNextNumber, roomId]);
+
+  const handleAutoAdvanceChange = (checked: boolean) => {
+    setAutoAdvance(checked && hasNumbersRemaining);
+    autoElapsedSecondsRef.current = 0;
+    setSecondsUntilNext(autoIntervalSeconds);
+  };
+
+  const handleAutoIntervalChange = (value: number) => {
+    const nextInterval = clampAutoAdvanceSeconds(value);
+    setAutoIntervalSeconds(nextInterval);
+    autoElapsedSecondsRef.current = 0;
+    setSecondsUntilNext(nextInterval);
+  };
+
+  const handleNextNumber = () => {
+    if (!hasNumbersRemaining) return;
+    onNextNumber(roomId);
+    autoElapsedSecondsRef.current = 0;
+    setSecondsUntilNext(autoIntervalSeconds);
+  };
 
   const toggleTts = () => {
     const next = !ttsOn;
@@ -103,9 +155,59 @@ export function MasterGame({
         />
       </div>
 
+      {/* Unattended number selection */}
+      <Card className="w-full max-w-md border-orange-200 mb-4">
+        <CardContent className="p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-orange-700">ELECCIÓN DESATENDIDA</p>
+              <p className="text-[11px] text-orange-500" aria-live="polite">
+                {!hasNumbersRemaining
+                  ? 'NO QUEDAN NÚMEROS EN EL RANGO'
+                  : autoAdvance
+                    ? `PRÓXIMO NÚMERO EN ${secondsUntilNext} S`
+                    : 'ACTIVÁ EL REVELADO AUTOMÁTICO'}
+              </p>
+            </div>
+            <Switch
+              checked={autoAdvance && hasNumbersRemaining}
+              onCheckedChange={handleAutoAdvanceChange}
+              disabled={!hasNumbersRemaining}
+              aria-label="Activar elección desatendida"
+            />
+          </div>
+          <div className="mt-3 flex items-center gap-3">
+            <input
+              type="range"
+              min={AUTO_ADVANCE_MIN_SECONDS}
+              max={AUTO_ADVANCE_MAX_SECONDS}
+              step={1}
+              value={autoIntervalSeconds}
+              onChange={(event) => handleAutoIntervalChange(Number(event.target.value))}
+              className="flex-1 accent-orange-500"
+              aria-label="Intervalo de elección desatendida en segundos"
+            />
+            <label className="flex items-center gap-1 text-xs font-semibold text-orange-700">
+              <input
+                type="number"
+                min={AUTO_ADVANCE_MIN_SECONDS}
+                max={AUTO_ADVANCE_MAX_SECONDS}
+                step={1}
+                value={autoIntervalSeconds}
+                onChange={(event) => handleAutoIntervalChange(Number(event.target.value))}
+                className="w-14 rounded-md border border-orange-200 px-1 py-1 text-center text-orange-800 focus:border-orange-500 focus:outline-none"
+                aria-label="Segundos entre números"
+              />
+              S
+            </label>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Next number button */}
       <Button
-        onClick={() => onNextNumber(roomId)}
+        onClick={handleNextNumber}
+        disabled={!hasNumbersRemaining}
         className="w-full max-w-md h-16 text-xl font-bold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-xl mb-6 transition-all duration-200 active:scale-95"
         aria-label="Llamar siguiente número"
       >

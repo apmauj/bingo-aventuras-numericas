@@ -230,6 +230,10 @@ export interface GameEndedPayload {
   results: RankingEntry[];
 }
 
+export interface RoomClosedPayload {
+  message: string;
+}
+
 export interface ErrorPayload {
   message: string;
   code: string;

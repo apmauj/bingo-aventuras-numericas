@@ -11,6 +11,9 @@ export type LineType = 'row' | 'column' | 'diagonal';
 /** Sentinel value for the FREE center cell */
 export const FREE_CELL = -1;
 
+/** Inclusive upper bound for teacher-configured bingo numbers. */
+export const MAX_NUMBER_VALUE = 10_000;
+
 export interface GameConfig {
   gridSize: number;
   numberRange: [number, number];
@@ -190,6 +193,10 @@ export interface RankingUpdatePayload {
 
 export interface GameEndedPayload {
   results: RankingEntry[];
+}
+
+export interface RoomClosedPayload {
+  message: string;
 }
 
 export interface ReconnectedPayload {

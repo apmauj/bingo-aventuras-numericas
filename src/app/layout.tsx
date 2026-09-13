@@ -19,12 +19,8 @@ export const metadata: Metadata = {
   keywords: ["bingo", "educativo", "niños", "números", "juego", "aula"],
   authors: [{ name: "Bingo Aventuras" }],
   icons: {
-    icon: [
-      { url: "/bingo/assets/pipo-16x16.png", sizes: "16x16", type: "image/png" },
-      { url: "/bingo/assets/pipo-32x32.png", sizes: "32x32", type: "image/png" },
-      { url: "/bingo/assets/pipo-48x48.png", sizes: "48x48", type: "image/png" },
-    ],
-    apple: "/bingo/assets/pipo-180x180.png",
+    icon: "/logo.svg",
+    apple: "/logo.svg",
   },
   openGraph: {
     title: "Bingo Aventuras Numéricas",
