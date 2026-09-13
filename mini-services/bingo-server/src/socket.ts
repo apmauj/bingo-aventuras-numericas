@@ -8,6 +8,7 @@ import type {
   JoinRoomPayload,
   StartGamePayload,
   NextNumberPayload,
+  SetNumberAssistancePayload,
   SelectNumberPayload,
   LeaveRoomPayload,
   RejoinRoomPayload,
@@ -16,6 +17,7 @@ import type {
   PlayerLeftPayload,
   GameStartedPayload,
   NewNumberPayload,
+  NumberAssistanceChangedPayload,
   SelectionResultPayload,
   AnswerSequencePayload,
   SequenceResultPayload,
@@ -39,6 +41,7 @@ import {
   deleteRoom,
 } from './rooms';
 import { validateAndMarkSelection, validateSequenceAnswer, validateComparisonAnswer, generateNextNumber, detectNewLines, detectBingo, generateComparisonTarget, generateSequenceTarget, generateSequenceOptions } from './game';
+import { logger } from './logger';
 
 function emitError(socket: Socket, message: string, code: string) {
   const payload: ErrorPayload = { message, code };
@@ -46,7 +49,7 @@ function emitError(socket: Socket, message: string, code: string) {
 }
 
 export function registerSocketHandlers(io: Server, socket: Socket) {
-  console.log(`[Socket] Connected: ${socket.id}`);
+  logger.debug(`[Socket] Connected: ${socket.id}`);
 
   // Track which room this socket is in
   let currentRoomId: string | null = null;
@@ -74,7 +77,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
       };
 
       socket.emit('server:roomCreated', payload);
-      console.log(`[Room] Created room ${room.code} by master ${socket.id}`, JSON.stringify(room.config), `mode: ${room.mode}`);
+      logger.debug(`[Room] Created room ${room.code} by master ${socket.id}`, JSON.stringify(room.config), `mode: ${room.mode}`);
     } catch (err: any) {
       emitError(socket, err.message || 'Error creating room', 'ROOM_CREATE_ERROR');
     }
@@ -116,7 +119,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
       };
       io.to(room.code).emit('server:playerJoined', payload);
 
-      console.log(`[Room ${room.code}] Player ${name} joined (${player.id})`);
+      logger.debug(`[Room ${room.code}] Player ${name} joined (${player.id})`);
     } catch (err: any) {
       emitError(socket, err.message || 'Error joining room', 'ROOM_JOIN_ERROR');
     }
@@ -160,6 +163,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
           card: player.card,
           mode: room.mode,
           calledNumbers: room.calledNumbers,
+          numberAssistanceEnabled: room.numberAssistanceEnabled,
           numberRange: room.config.numberRange,
           gridSize: room.config.gridSize,
           freeCell: room.config.freeCell,
@@ -172,15 +176,51 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         card: [],
         mode: room.mode,
         calledNumbers: room.calledNumbers,
+        numberAssistanceEnabled: room.numberAssistanceEnabled,
         numberRange: room.config.numberRange,
         gridSize: room.config.gridSize,
         freeCell: room.config.freeCell,
       };
       io.to(room.masterSocketId).emit('server:gameStarted', masterPayload);
 
-      console.log(`[Room ${room.code}] Game started with ${room.players.size} players, mode: ${room.mode}`);
+      logger.debug(`[Room ${room.code}] Game started with ${room.players.size} players, mode: ${room.mode}`);
     } catch (err: any) {
       emitError(socket, err.message || 'Error starting game', 'GAME_START_ERROR');
+    }
+  });
+
+  // =============================================
+  // client:setNumberAssistance — Master controls student hints
+  // =============================================
+  socket.on('client:setNumberAssistance', (data: SetNumberAssistancePayload) => {
+    try {
+      const { roomId, enabled } = data;
+      const room = findRoomById(roomId);
+      if (!room) {
+        emitError(socket, 'SALA NO ENCONTRADA', 'ROOM_NOT_FOUND');
+        return;
+      }
+
+      if (room.masterSocketId !== socket.id) {
+        emitError(socket, 'SOLO EL DOCENTE PUEDE ACTIVAR LA ASISTENCIA', 'NOT_MASTER');
+        return;
+      }
+
+      if (room.state !== 'playing') {
+        emitError(socket, 'LA ASISTENCIA SE PUEDE CAMBIAR DURANTE LA PARTIDA', 'GAME_NOT_PLAYING');
+        return;
+      }
+
+      if (typeof enabled !== 'boolean') {
+        emitError(socket, 'CONFIGURACIÓN DE ASISTENCIA INVÁLIDA', 'INVALID_DATA');
+        return;
+      }
+
+      room.numberAssistanceEnabled = enabled;
+      const payload: NumberAssistanceChangedPayload = { enabled };
+      io.to(room.code).emit('server:numberAssistanceChanged', payload);
+    } catch (err: any) {
+      emitError(socket, err.message || 'Error changing number assistance', 'NUMBER_ASSISTANCE_ERROR');
     }
   });
 
@@ -259,7 +299,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         : payload.decadeStart !== undefined ? ` — DECENA ${payload.decadeStart}-${payload.decadeEnd}`
         : payload.sequenceType ? ` — ¿${payload.sequenceType === 'after' ? 'DESPUÉS' : 'ANTES'} DE ${payload.sequencePrompt}?`
         : '';
-      console.log(`[Room ${room.code}] Number called: ${number} (#${room.calledNumbers.length})${modeInfo}`);
+      logger.debug(`[Room ${room.code}] Number called: ${number} (#${room.calledNumbers.length})${modeInfo}`);
     } catch (err: any) {
       emitError(socket, err.message || 'Error calling number', 'NEXT_NUMBER_ERROR');
     }
@@ -448,13 +488,13 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
       // Broadcast line completions
       for (const line of lines) {
         io.to(room.code).emit('server:lineCompleted', line);
-        console.log(`[Room ${room.code}] ${player.name} completed a ${line.type}! +50 bonus`);
+        logger.debug(`[Room ${room.code}] ${player.name} completed a ${line.type}! +50 bonus`);
       }
 
       // Check for bingo
       if (bingoResult) {
         io.to(room.code).emit('server:bingo', bingoResult);
-        console.log(`[Room ${room.code}] 🎉 BINGO! ${player.name} wins! +200 bonus`);
+        logger.debug(`[Room ${room.code}] 🎉 BINGO! ${player.name} wins! +200 bonus`);
 
         // End the game
         room.state = 'ended';
@@ -504,11 +544,12 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         score: player.score,
         marked: player.marked,
         calledNumbers: room.calledNumbers,
+        numberAssistanceEnabled: room.numberAssistanceEnabled,
         hasBingo: false, // We don't track this explicitly; the card state tells
       };
       socket.emit('server:reconnected', reconnectedPayload);
 
-      console.log(`[Room ${room.code}] Player ${player.name} reconnected`);
+      logger.debug(`[Room ${room.code}] Player ${player.name} reconnected`);
     } catch (err: any) {
       emitError(socket, err.message || 'Error reconnecting', 'RECONNECT_ERROR');
     }
@@ -548,7 +589,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         };
         io.to(room.code).emit('server:rankingUpdate', rankingPayload);
 
-        console.log(`[Room ${room.code}] Player left: ${playerId}`);
+        logger.debug(`[Room ${room.code}] Player left: ${playerId}`);
       }
 
       // If master leaves, end the game or clean up
@@ -567,7 +608,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         }
         socket.leave(room.code);
         deleteRoom(room.code);
-        console.log(`[Room ${room.code}] Master left, room closed`);
+        logger.debug(`[Room ${room.code}] Master left, room closed`);
       }
 
       currentRoomId = null;
@@ -583,7 +624,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
   // If they don't reconnect, remove them.
   // =============================================
   socket.on('disconnect', (reason) => {
-    console.log(`[Socket] Disconnected: ${socket.id} (${reason})`);
+    logger.debug(`[Socket] Disconnected: ${socket.id} (${reason})`);
 
     if (!currentRoomId) return;
 
@@ -605,7 +646,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         io.to(room.code).emit('server:roomClosed', payload);
       }
       deleteRoom(room.code);
-      console.log(`[Room ${room.code}] Master disconnected, room closed`);
+      logger.debug(`[Room ${room.code}] Master disconnected, room closed`);
       return;
     }
 
@@ -615,7 +656,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
       if (player) {
         if (room.state === 'playing') {
           // During a game, give the player a chance to reconnect
-          console.log(`[Room ${room.code}] Player ${player.name} disconnected — waiting 30s for reconnect`);
+          logger.debug(`[Room ${room.code}] Player ${player.name} disconnected — waiting 30s for reconnect`);
           const disconnectedPlayerId = currentPlayerId;
           const disconnectedRoomCode = room.code;
 
@@ -638,7 +679,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
               };
               io.to(currentRoom.code).emit('server:rankingUpdate', rankingPayload);
 
-              console.log(`[Room ${currentRoom.code}] Player ${currentPlayer.name} removed after 30s no reconnect`);
+              logger.debug(`[Room ${currentRoom.code}] Player ${currentPlayer.name} removed after 30s no reconnect`);
             }
           }, 30000);
         } else {
@@ -653,7 +694,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
           };
           io.to(room.code).emit('server:rankingUpdate', rankingPayload);
 
-          console.log(`[Room ${room.code}] Player ${player.name} disconnected from lobby`);
+          logger.debug(`[Room ${room.code}] Player ${player.name} disconnected from lobby`);
         }
       }
     }

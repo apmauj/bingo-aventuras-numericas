@@ -12,6 +12,7 @@ import { NumberDisplay } from './NumberDisplay';
 import { RankingBoard } from './RankingBoard';
 import type { RankingEntry, ComparisonOperator, GameMode, SequenceType } from '@/types/bingo';
 import { AUTO_ADVANCE_MAX_SECONDS, AUTO_ADVANCE_MIN_SECONDS, DEFAULT_AUTO_ADVANCE_SECONDS, clampAutoAdvanceSeconds, getExpectedCallCount } from '@/lib/bingo-config';
+import { scrollToLatest } from '@/lib/number-history';
 import { ArrowRight, Square, History, Users, Volume2, VolumeX } from 'lucide-react';
 import { isTtsEnabled, setTtsEnabled } from './SoundFX';
 
@@ -20,8 +21,10 @@ interface MasterGameProps {
   currentNumber: number | null;
   numberIndex: number;
   calledNumbers: number[];
+  numberAssistanceEnabled: boolean;
   ranking: RankingEntry[];
   onNextNumber: (roomId: string) => void;
+  onNumberAssistanceChange: (roomId: string, enabled: boolean) => void;
   onEndGame: (roomId: string) => void;
   playerCount: number;
   numberRange: [number, number];
@@ -39,8 +42,10 @@ export function MasterGame({
   currentNumber,
   numberIndex,
   calledNumbers,
+  numberAssistanceEnabled,
   ranking,
   onNextNumber,
+  onNumberAssistanceChange,
   onEndGame,
   playerCount,
   numberRange,
@@ -81,6 +86,12 @@ export function MasterGame({
 
     return () => window.clearInterval(timer);
   }, [autoAdvance, autoIntervalSeconds, hasNumbersRemaining, onNextNumber, roomId]);
+
+  const calledNumbersHistoryRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    scrollToLatest(calledNumbersHistoryRef.current);
+  }, [calledNumbers.length]);
 
   const handleAutoAdvanceChange = (checked: boolean) => {
     setAutoAdvance(checked && hasNumbersRemaining);
@@ -204,6 +215,27 @@ export function MasterGame({
         </CardContent>
       </Card>
 
+      {/* Number assistance toggle */}
+      <Card className="w-full max-w-md border-emerald-200 mb-4">
+        <CardContent className="p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-emerald-700">ASISTENCIA DE NÚMEROS</p>
+              <p className="text-[11px] text-emerald-600">
+                {numberAssistanceEnabled
+                  ? 'LOS ESTUDIANTES VEN SUS NÚMEROS PENDIENTES'
+                  : 'AVISAR A LOS ESTUDIANTES SI TIENEN NÚMEROS SIN MARCAR'}
+              </p>
+            </div>
+            <Switch
+              checked={numberAssistanceEnabled}
+              onCheckedChange={(checked) => onNumberAssistanceChange(roomId, checked)}
+              aria-label="Activar asistencia de números"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Next number button */}
       <Button
         onClick={handleNextNumber}
@@ -224,7 +256,7 @@ export function MasterGame({
               NÚMEROS LLAMADOS ({calledNumbers.length})
             </span>
           </div>
-          <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+          <div ref={calledNumbersHistoryRef} className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
             {calledNumbers.length === 0 ? (
               <span className="text-xs text-amber-400">PRESIONÁ &quot;SIGUIENTE NÚMERO&quot; PARA EMPEZAR</span>
             ) : (

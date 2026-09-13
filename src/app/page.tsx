@@ -24,6 +24,7 @@ import type {
   PlayerLeftPayload,
   GameStartedPayload,
   NewNumberPayload,
+  NumberAssistanceChangedPayload,
   ReconnectedPayload,
   RoomClosedPayload,
   GameMode,
@@ -42,12 +43,15 @@ import { ResultsScreen } from '@/components/bingo/ResultsScreen';
 import { ConfettiEffect } from '@/components/bingo/ConfettiEffect';
 import { BingoOverlay } from '@/components/bingo/BingoOverlay';
 import { playNumberCalled, playCorrect, playIncorrect, playLineCompleted, playBingo, playJoined, resumeAudio, speakNumber } from '@/components/bingo/SoundFX';
+import { isOwnLineCompletion } from '@/lib/line-completion';
+import { logger } from '@/lib/logger';
 
 const EMPTY_ROOM_STATE: RoomState = {
   id: '',
   code: '',
   players: [],
   calledNumbers: [],
+  numberAssistanceEnabled: false,
   currentNumber: null,
   ranking: [],
   gridSize: 3,
@@ -140,12 +144,15 @@ export default function Home() {
   }, [emit]);
 
   const handleStartGame = useCallback((roomId: string) => {
-    console.log('[UI] Starting game, roomId:', roomId, 'mode:', room.mode);
     emit(CLIENT_EVENTS.START_GAME, { roomId, mode: room.mode });
   }, [emit, room.mode]);
 
   const handleNextNumber = useCallback((roomId: string) => {
     emit(CLIENT_EVENTS.NEXT_NUMBER, { roomId });
+  }, [emit]);
+
+  const handleNumberAssistanceChange = useCallback((roomId: string, enabled: boolean) => {
+    emit(CLIENT_EVENTS.SET_NUMBER_ASSISTANCE, { roomId, enabled });
   }, [emit]);
 
   const handleEndGame = useCallback((roomId: string) => {
@@ -195,7 +202,6 @@ export default function Home() {
   }, [handleLeaveRoom]);
 
   const handleJoinRoom = useCallback((code: string, name: string, avatar: string) => {
-    console.log('[UI] Joining room:', code, 'as', name);
     setPlayerName(name);
     setPlayerAvatar(avatar);
     setRoom((prev) => ({ ...prev, code }));
@@ -244,10 +250,7 @@ export default function Home() {
 
   // ---- Socket event listeners ----
   function registerAllListeners(socket: any) {
-    console.log('[Events] Registering all Socket.io listeners on socket:', socket.id);
-
     socket.on(SERVER_EVENTS.ROOM_CREATED, (payload: RoomCreatedPayload) => {
-      console.log('[Event] roomCreated:', payload);
       setRoom((prev) => ({
         ...prev,
         id: payload.roomId,
@@ -262,7 +265,6 @@ export default function Home() {
     });
 
     socket.on(SERVER_EVENTS.PLAYER_JOINED, (payload: PlayerJoinedPayload) => {
-      console.log('[Event] playerJoined:', payload.player.name, 'roomId:', payload.roomId, 'totalPlayers:', payload.players?.length);
       setRoom((prev) => ({
         ...prev,
         id: payload.roomId || prev.id, // Set room.id for students so they can emit events
@@ -284,7 +286,6 @@ export default function Home() {
     });
 
     socket.on(SERVER_EVENTS.GAME_STARTED, (payload: GameStartedPayload) => {
-      console.log('[Event] gameStarted, role:', currentRoleRef.current, 'card:', payload.card, 'numberRange:', payload.numberRange, 'mode:', payload.mode);
       if (currentRoleRef.current === 'student') {
         setPlayerCard(payload.card);
         // Initialize marked grid: FREE cells (value -1) are pre-marked as true
@@ -292,6 +293,7 @@ export default function Home() {
         setPlayerScore(0);
         setRoom((prev) => ({
           ...prev, calledNumbers: payload.calledNumbers,
+          numberAssistanceEnabled: payload.numberAssistanceEnabled ?? false,
           currentNumber: null,
           gridSize: payload.gridSize || payload.card.length,
           numberRange: payload.numberRange || prev.numberRange,
@@ -302,6 +304,7 @@ export default function Home() {
       } else {
         setRoom((prev) => ({
           ...prev, calledNumbers: payload.calledNumbers,
+          numberAssistanceEnabled: payload.numberAssistanceEnabled ?? false,
           currentNumber: null,
           gridSize: payload.gridSize || prev.gridSize,
           numberRange: payload.numberRange || prev.numberRange,
@@ -315,8 +318,11 @@ export default function Home() {
       setComparisonOperator(undefined);
     });
 
+    socket.on(SERVER_EVENTS.NUMBER_ASSISTANCE_CHANGED, (payload: NumberAssistanceChangedPayload) => {
+      setRoom((prev) => ({ ...prev, numberAssistanceEnabled: payload.enabled }));
+    });
+
     socket.on(SERVER_EVENTS.NEW_NUMBER, (payload: NewNumberPayload) => {
-      console.log('[Event] newNumber:', payload.number, 'mode data:', { comparison: payload.comparisonOperator, decade: payload.decadeStart, sequence: payload.sequenceType });
       playNumberCalled();
       // In sequence/comparison mode, students must answer before knowing the number — don't spoil it via TTS.
       // The teacher (master) always hears the number; students hear it after answering correctly.
@@ -403,7 +409,6 @@ export default function Home() {
     });
 
     socket.on(SERVER_EVENTS.SEQUENCE_RESULT, (payload: SequenceResultPayload) => {
-      console.log('[Event] sequenceResult:', payload);
       if (payload.correct) {
         setSequenceAnsweredCorrectly(true);
         setPlayerScore(payload.totalScore);
@@ -421,7 +426,6 @@ export default function Home() {
     });
 
     socket.on(SERVER_EVENTS.COMPARISON_RESULT, (payload: ComparisonResultPayload) => {
-      console.log('[Event] comparisonResult:', payload);
       if (payload.correct) {
         setComparisonAnsweredCorrectly(true);
         setPlayerScore(payload.totalScore);
@@ -439,12 +443,18 @@ export default function Home() {
     });
 
     socket.on(SERVER_EVENTS.LINE_COMPLETED, (payload: LineCompletedPayload) => {
-      playLineCompleted();
+      const isOwnCompletion = isOwnLineCompletion(
+        currentRoleRef.current,
+        payload.playerId,
+        playerIdRef.current,
+      );
+
+      if (isOwnCompletion) playLineCompleted();
       showToast(`¡${payload.playerName} — ${payload.message} +${payload.bonus} PTS`, 'success');
 
-      // Highlight the completed line on the student's card
-      // We need to figure out which specific line was completed from the student's marked grid
-      if (currentRoleRef.current === 'student' && playerCardRef.current.length > 0) {
+      // Only the student who completed the line sees it highlighted locally.
+      // Everyone else receives the broadcast toast without changing their card.
+      if (isOwnCompletion && playerCardRef.current.length > 0) {
         const card = playerCardRef.current;
         const gridSize = card.length;
         const marked = playerMarkedRef.current;
@@ -505,18 +515,19 @@ export default function Home() {
     });
 
     socket.on(SERVER_EVENTS.ERROR, (payload: ErrorPayload) => {
-      console.log('[Event] error:', payload);
+      logger.error('[Event] Server error:', payload.code, payload.message);
       showToast(payload.message, 'error');
     });
 
     socket.on(SERVER_EVENTS.RECONNECTED, (payload: ReconnectedPayload) => {
-      console.log('[Event] reconnected — score:', payload.score, 'calledNumbers:', payload.calledNumbers.length);
+      logger.debug('[Event] reconnected — score:', payload.score, 'calledNumbers:', payload.calledNumbers.length);
       // Restore game state after reconnection
       setPlayerScore(payload.score);
       setPlayerMarked(payload.marked);
       setRoom((prev) => ({
         ...prev,
         calledNumbers: payload.calledNumbers,
+        numberAssistanceEnabled: payload.numberAssistanceEnabled ?? false,
         currentNumber: payload.calledNumbers.length > 0 ? payload.calledNumbers[payload.calledNumbers.length - 1] : null,
       }));
       showToast('¡RECONECTADO! SEGUÍ JUGANDO.', 'success');
@@ -524,14 +535,14 @@ export default function Home() {
 
     // ---- Socket disconnect/reconnect handling ----
     socket.on('disconnect', (reason: string) => {
-      console.warn('[Socket] Disconnected:', reason);
+      logger.warn('[Socket] Disconnected:', reason);
       if (currentRoleRef.current === 'student' && roomCodeRef.current && currentView === 'studentGame') {
         showToast('SE PERDIÓ LA CONEXIÓN. INTENTANDO RECONECTAR...', 'error');
       }
     });
 
     socket.on('reconnect', (attemptNumber: number) => {
-      console.log('[Socket] Reconnected after', attemptNumber, 'attempts');
+      logger.debug('[Socket] Reconnected after', attemptNumber, 'attempts');
       // If we were a student in a game, try to rejoin with our playerId
       if (currentRoleRef.current === 'student' && roomCodeRef.current && playerIdRef.current) {
         socket.emit(CLIENT_EVENTS.REJOIN_ROOM, {
@@ -589,6 +600,7 @@ export default function Home() {
           score={playerScore}
           currentNumber={room.currentNumber}
           calledNumbers={room.calledNumbers}
+          numberAssistanceEnabled={room.numberAssistanceEnabled}
           numberIndex={room.calledNumbers.length - 1}
           ranking={room.ranking}
           playerName={playerName}
@@ -623,6 +635,8 @@ export default function Home() {
           calledNumbers={room.calledNumbers}
           ranking={room.ranking}
           onNextNumber={handleNextNumber}
+          numberAssistanceEnabled={room.numberAssistanceEnabled}
+          onNumberAssistanceChange={handleNumberAssistanceChange}
           onEndGame={handleEndGame}
           playerCount={room.players.length}
           numberRange={room.numberRange}

@@ -7,6 +7,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { registerSocketHandlers } from './src/socket';
 import { getRoomCount } from './src/rooms';
+import { logger } from './src/logger';
 
 const PORT = process.env.PORT || 3003;
 
@@ -48,23 +49,23 @@ io.on('connection', (socket) => {
 
 // ---- Start server ----
 httpServer.listen(Number(PORT), () => {
-  console.log(`🎲 Bingo Aventuras Numéricas server running on port ${PORT}`);
-  console.log(`   Health check: http://localhost:${PORT}/health`);
+  logger.info(`🎲 Bingo Aventuras Numéricas server running on port ${PORT}`);
+  logger.info(`   Health check: http://localhost:${PORT}/health`);
 });
 
 // ---- Graceful shutdown ----
 process.on('SIGTERM', () => {
-  console.log('Received SIGTERM signal, shutting down server...');
+  logger.info('Received SIGTERM signal, shutting down server...');
   httpServer.close(() => {
-    console.log('Bingo server closed');
+    logger.info('Bingo server closed');
     process.exit(0);
   });
 });
 
 process.on('SIGINT', () => {
-  console.log('Received SIGINT signal, shutting down server...');
+  logger.info('Received SIGINT signal, shutting down server...');
   httpServer.close(() => {
-    console.log('Bingo server closed');
+    logger.info('Bingo server closed');
     process.exit(0);
   });
 });

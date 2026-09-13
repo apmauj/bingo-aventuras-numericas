@@ -19,8 +19,9 @@ export const metadata: Metadata = {
   keywords: ["bingo", "educativo", "niños", "números", "juego", "aula"],
   authors: [{ name: "Bingo Aventuras" }],
   icons: {
-    icon: "/logo.svg",
-    apple: "/logo.svg",
+    // Relative URLs keep the GitHub Pages basePath in the resolved browser URL.
+    icon: "logo.svg",
+    apple: "logo.svg",
   },
   openGraph: {
     title: "Bingo Aventuras Numéricas",

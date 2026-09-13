@@ -167,6 +167,7 @@ export function createRoom(masterSocketId: string, config?: Partial<GameConfig> 
     config: { ...mergedConfig, freeCell: effectiveFreeCell },
     calledNumbers: [],
     currentNumber: null,
+    numberAssistanceEnabled: false,
     createdAt: Date.now(),
     sequenceAttempts: new Map(),
     sequenceAnswered: new Set(),

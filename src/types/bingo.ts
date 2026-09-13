@@ -109,6 +109,11 @@ export interface NextNumberPayload {
   roomId: string;
 }
 
+export interface SetNumberAssistancePayload {
+  roomId: string;
+  enabled: boolean;
+}
+
 export interface SelectNumberPayload {
   roomId: string;
   number: number;
@@ -159,6 +164,7 @@ export interface GameStartedPayload {
   card: number[][];
   mode: GameMode;
   calledNumbers: number[];
+  numberAssistanceEnabled: boolean;
   numberRange: [number, number];
   gridSize: number;
   freeCell: boolean;
@@ -174,6 +180,10 @@ export interface NewNumberPayload {
   sequenceType?: SequenceType;
   sequencePrompt?: number;
   sequenceOptions?: number[];
+}
+
+export interface NumberAssistanceChangedPayload {
+  enabled: boolean;
 }
 
 export interface SelectionResultPayload {
@@ -243,6 +253,7 @@ export interface ReconnectedPayload {
   score: number;
   marked: boolean[][];
   calledNumbers: number[];
+  numberAssistanceEnabled: boolean;
   hasBingo: boolean;
 }
 
@@ -262,6 +273,7 @@ export interface RoomState {
   code: string;
   players: PlayerPublic[];
   calledNumbers: number[];
+  numberAssistanceEnabled: boolean;
   currentNumber: number | null;
   ranking: RankingEntry[];
   gridSize: number;

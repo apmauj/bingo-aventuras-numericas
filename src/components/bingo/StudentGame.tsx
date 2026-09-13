@@ -4,7 +4,7 @@
 
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { BingoCard } from './BingoCard';
 import { NumberDisplay } from './NumberDisplay';
 import { RankingBoard } from './RankingBoard';
@@ -16,6 +16,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Star, Zap, Volume2, VolumeX } from 'lucide-react';
 import { isTtsEnabled, setTtsEnabled } from './SoundFX';
+import { countUnmarkedCalledNumbers } from '@/lib/bingo-assistance';
+import { scrollToLatest } from '@/lib/number-history';
 
 interface StudentGameProps {
   card: number[][];
@@ -23,6 +25,7 @@ interface StudentGameProps {
   score: number;
   currentNumber: number | null;
   calledNumbers: number[];
+  numberAssistanceEnabled: boolean;
   numberIndex: number;
   ranking: RankingEntry[];
   playerName: string;
@@ -52,6 +55,7 @@ export function StudentGame({
   score,
   currentNumber,
   calledNumbers,
+  numberAssistanceEnabled = false,
   numberIndex,
   ranking,
   playerName,
@@ -122,6 +126,17 @@ export function StudentGame({
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [pipoMood, setPipoMood] = useState<'happy' | 'celebrating' | 'thinking'>('happy');
   const [ttsOn, setTtsOn] = useState(isTtsEnabled());
+
+  const pendingCalledNumberCount = useMemo(() => {
+    if (!numberAssistanceEnabled || calledNumbers.length === 0) return 0;
+    return countUnmarkedCalledNumbers(card, marked, calledNumbers, mode);
+  }, [card, calledNumbers, marked, mode, numberAssistanceEnabled]);
+
+  const calledNumbersHistoryRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    scrollToLatest(calledNumbersHistoryRef.current);
+  }, [calledNumbers.length]);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info') => {
     setToast({ message, type });
@@ -356,11 +371,18 @@ export function StudentGame({
       {/* Called numbers history */}
       <Card className="w-full max-w-md border-amber-200 mb-4">
         <CardContent className="p-3">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
             <Zap className="w-4 h-4 text-amber-500" />
             <span className="text-xs font-semibold text-amber-700">NÚMEROS LLAMADOS</span>
+            {numberAssistanceEnabled && calledNumbers.length > 0 && (
+              <span className="text-[11px] font-bold text-emerald-600" aria-live="polite">
+                {pendingCalledNumberCount > 0
+                  ? `• ${pendingCalledNumberCount} ${pendingCalledNumberCount === 1 ? 'PENDIENTE' : 'PENDIENTES'}`
+                  : '• TODO MARCADO'}
+              </span>
+            )}
           </div>
-          <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
+          <div ref={calledNumbersHistoryRef} className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
             {calledNumbers.map((num, idx) => {
                 const isLatest = idx === calledNumbers.length - 1;
                 const shouldHide = isLatest && !answeredCurrentQuestion

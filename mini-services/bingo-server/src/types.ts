@@ -30,6 +30,7 @@ export interface Room {
   config: GameConfig;
   calledNumbers: number[];
   currentNumber: number | null;
+  numberAssistanceEnabled: boolean;
   createdAt: number;
   sequenceAttempts: Map<string, number>;   // playerId → attempt count
   sequenceAnswered: Set<string>;           // playerIds who answered correctly this round
@@ -74,6 +75,11 @@ export interface StartGamePayload {
 
 export interface NextNumberPayload {
   roomId: string;
+}
+
+export interface SetNumberAssistancePayload {
+  roomId: string;
+  enabled: boolean;
 }
 
 export interface SelectNumberPayload {
@@ -124,6 +130,7 @@ export interface GameStartedPayload {
   card: number[][];
   mode: GameMode;
   calledNumbers: number[];
+  numberAssistanceEnabled: boolean;
   numberRange: [number, number];
   gridSize: number;
   freeCell: boolean;
@@ -139,6 +146,10 @@ export interface NewNumberPayload {
   sequenceType?: SequenceType;
   sequencePrompt?: number;
   sequenceOptions?: number[];
+}
+
+export interface NumberAssistanceChangedPayload {
+  enabled: boolean;
 }
 
 export interface SelectionResultPayload {
@@ -203,6 +214,7 @@ export interface ReconnectedPayload {
   score: number;
   marked: boolean[][];
   calledNumbers: number[];
+  numberAssistanceEnabled: boolean;
   hasBingo: boolean;
 }
 
