@@ -1,6 +1,9 @@
 {
   "name": "bingo-server",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=22.23.4 <23.0.0"
+  },
   "scripts": {
     "dev": "bun --hot index.ts",
     "start": "node --import tsx index.ts"
